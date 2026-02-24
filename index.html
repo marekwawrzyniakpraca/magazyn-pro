@@ -137,12 +137,24 @@
         }
     }
 
-    // Wybieranie z historii (obsługuje format "KOD - NAZWA" lub sam KOD)
     function wybierzZHistorii(tekstLogu) {
-        // Jeśli log zawiera myślnik, bierzemy tylko to co przed nim (kod)
-        let kod = tekstLogu.split(' - ')[0].trim();
-        wybierz(kod);
+    // Log ma format "KOD - NAZWA", bierzemy tylko to przed myślnikiem
+    let czesci = tekstLogu.split(' - ');
+    let kodZLogu = czesci[0].trim();
+    
+    // Szukamy w bazie obiektu, który ma taki kod
+    let produkt = db.find(i => String(i.kod).trim() === kodZLogu);
+    
+    if(produkt) {
+        document.getElementById('kod').value = produkt.kod;
+        document.getElementById('nazwa').value = produkt.nazwa;
+        document.getElementById('regal').value = produkt.regal;
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    } else {
+        // Jeśli nie ma w db, wpisz chociaż sam kod z logu
+        document.getElementById('kod').value = kodZLogu;
     }
+}
 
     async function zapisz() {
         const d = { 
