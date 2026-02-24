@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Magazyn PRO v3.0</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; }
+        #licznik-box { background: #000; color: #0f0; text-align: center; padding: 15px; border-radius: 15px; margin-bottom: 20px; }
+        #dzienny-licznik { font-size: 40px; font-weight: 900; display: block; }
+        .btn { width: 100%; height: 75px; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .btn-scan { background: #007bff; color: white; box-shadow: 0 5px 0 #004a99; }
+        .btn-save { background: #28a745; color: white; height: 85px; font-size: 22px; box-shadow: 0 6px 0 #1e7e34; }
+        input { width: 100%; height: 60px; border: 3px solid #000; border-radius: 12px; font-size: 22px; margin-bottom: 15px; padding: 0 15px; box-sizing: border-box; }
+        #reader { width: 100%; max-width: 400px; margin: 0 auto 15px; display: none; border: 5px solid #007bff; border-radius: 15px; overflow: hidden; }
+        .log-item { border-bottom: 1px solid #ddd; padding: 10px 0; font-size: 14px; color: #333; }
+    </style>
+</head>
+<body>
+
+<div id="licznik-box">DODANO DZIŚ: <span id="dzienny-licznik">0</span></div>
+<div id="reader"></div>
+
+<label>KOD CZĘŚCI:</label>
+<button class="btn btn-scan" onclick="startS('kod')">SKANUJ KOD QR</button>
+<input type="text" id="kod">
+
+<label>NAZWA:</label>
+<input type="text" id="nazwa">
+
+<label>REGAŁ:</label>
+<button class="btn btn-scan" onclick="startS('regal')" style="background:#6c757d; box-shadow: 0 5px 0 #444;">SKANUJ REGAŁ</button>
+<input type="text" id="regal">
+
+<button class="btn btn-save" onclick="zapisz()">ZAPISZ DO BAZY</button>
+
+<div id="logi" style="margin-top:20px;"></div>
+
+<script>
+    // WAŻNE: Tu wklej swój link z Google Apps Script (ten z /exec)
+    const API_URL = "https://script.google.com/macros/s/AKfycbxRDQTICCBJJ6XWAeoCkKsMasLCVA6Vc2fSII1xmb_J7QXM8pXaod5iY3IKWBCWg8W4/exec";
+
+    let h5q = null;
+    let db = [];
+
+    async function load() {
+        try {
+            const resp = await fetch(API_URL + "?akcja=pobierz");
+            const r = await resp.json();
+            db = r.b;
+            document.getElementById('dzienny-licznik').innerText = r.c;
+            document.getElementById('logi').innerHTML = r.l.map(l => `<div class="log-item"><b>${l.t}</b>: ${l.k} (${l.h})</div>`).join('');
+        } catch(e) { console.error("Błąd ładowania danych", e); }
+    }
+
+    function startS(id) {
+        const r = document.getElementById('reader');
+        r.style.display = 'block';
+        if(h5q) h5q.clear();
+        h5q = new Html5Qrcode("reader");
+        h5q.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => {
+            document.getElementById(id).value = text;
+            if(id === 'kod') {
+                let it = db.find(i => String(i.kod) === String(text));
+                if(it) {
+                    document.getElementById('nazwa').value = it.nazwa;
+                    document.getElementById('regal').value = it.regal;
+                }
+            }
+            h5q.stop(); r.style.display = 'none';
+        }).catch(err => alert("Błąd kamery: " + err));
+    }
+
+    async function zapisz() {
+        const dane = {
+            kod: document.getElementById('kod').value,
+            nazwa: document.getElementById('nazwa').value,
+            regal: document.getElementById('regal').value
+        };
+        if(!dane.kod) return alert("Podaj kod!");
+
+        await fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Ważne dla Google Apps Script
+            body: JSON.stringify(dane)
+        });
+        
+        alert("Wysłano zapytanie o zapis!");
+        location.reload();
+    }
+
+    window.onload = load;
+</script>
+</body>
+</html>
