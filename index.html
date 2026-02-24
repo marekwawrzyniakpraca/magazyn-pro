@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magazyn PRO v4.0</title>
+    <title>Magazyn PRO v4.5</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
@@ -16,9 +16,10 @@
         label { display: block; margin: 8px 0 4px 5px; font-weight: bold; font-size: 13px; color: #555; text-transform: uppercase; }
         input { width: 100%; height: 55px; border: 2px solid #ddd; border-radius: 12px; padding: 0 12px; font-size: 18px; margin-bottom: 10px; }
         
-        .btn { width: 100%; height: 65px; border: none; border-radius: 15px; font-size: 17px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+        .btn { width: 100%; height: 65px; border: none; border-radius: 15px; font-size: 17px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; text-decoration: none; }
         .btn-scan { background: #007bff; color: white; box-shadow: 0 4px 0 #004a99; }
         .btn-save { background: #28a745; color: white; height: 75px; font-size: 20px; box-shadow: 0 5px 0 #19692c; margin-top: 10px; }
+        .btn-delete { background: #dc3545; color: white; box-shadow: 0 5px 0 #a71d2a; display: none; } /* Ukryty domyślnie */
         .btn:active { transform: translateY(3px); box-shadow: none; }
         
         #reader { width: 100%; max-width: 400px; margin: 0 auto 10px; display: none; border: 4px solid #007bff; border-radius: 15px; overflow: hidden; }
@@ -35,30 +36,31 @@
 <div id="loading"><b>ŁADOWANIE BAZY...</b></div>
 
 <div id="licznik-box">
-    <small>DZISIAJ DODANO</small>
+    <small>DZISIAJ DODANO / ZMIENIONO</small>
     <span id="dzienny-licznik">0</span>
 </div>
 
 <div id="reader"></div>
 
 <div class="sekcja">
-    <label>Kod części:</label>
+    <label>Kod części (Kolumna B):</label>
     <button class="btn btn-scan" onclick="startS('kod')">📸 SKANUJ KOD</button>
     <input type="text" id="kod" oninput="autoUzupelnij(this.value)">
 
-    <label>Nazwa:</label>
+    <label>Nazwa części (Kolumna C):</label>
     <input type="text" id="nazwa">
 
-    <label>Regał:</label>
+    <label>Regał (Kolumna D):</label>
     <button class="btn btn-scan" onclick="startS('regal')" style="background:#6c757d; box-shadow:0 4px 0 #444;">📸 SKANUJ REGAŁ</button>
     <input type="text" id="regal">
 
     <button class="btn btn-save" onclick="zapisz()">ZAPISZ / AKTUALIZUJ</button>
+    <button class="btn btn-delete" id="btn-usun" onclick="usun()">USUŃ TĘ CZĘŚĆ</button>
 </div>
 
 <div class="sekcja-dark">
-    <label style="color:#007bff">Wyszukaj produkt:</label>
-    <button class="btn btn-scan" onclick="startS('szukaj')" style="height:50px; font-size:14px; background:#444;">📸 SKANUJ ABY SZUKAĆ</button>
+    <label style="color:#007bff">Wyszukiwarka ze skanerem:</label>
+    <button class="btn btn-scan" onclick="startS('szukaj')" style="height:50px; font-size:14px; background:#444;">📸 SKANUJ KOD DO SZUKANIA</button>
     <input type="text" id="szukaj" placeholder="Wpisz kod lub nazwę..." onkeyup="filtruj()">
     <div id="wyniki"></div>
 </div>
@@ -77,16 +79,18 @@
         try {
             const resp = await fetch(API_URL + "?akcja=pobierz");
             const r = await resp.json();
-            db = r.b;
+            db = r.b; // Baza: data, kod, nazwa, regal
             document.getElementById('dzienny-licznik').innerText = r.c;
-            // Historia - kliknięcie teraz poprawnie wypełnia pola
+            
             document.getElementById('logi').innerHTML = r.l.map(l => `
-                <div class="log-item" onclick="wybierzZHistorii('${l.k}')">
+                <div class="log-item" onclick="wybierzZLogu('${l.k}')">
                     <span><b>[${l.t}]</b> ${l.k}</span>
                     <span style="color:#888">${l.h}</span>
                 </div>`).join('');
             document.getElementById('loading').style.display = 'none';
-        } catch(e) { alert("Błąd synchronizacji"); }
+        } catch(e) { 
+            document.getElementById('loading').innerHTML = "<b>BŁĄD POŁĄCZENIA!</b><br>Sprawdź uprawnienia w Arkuszu.";
+        }
     }
 
     function startS(id) {
@@ -111,6 +115,9 @@
         if(it) {
             document.getElementById('nazwa').value = it.nazwa;
             document.getElementById('regal').value = it.regal;
+            document.getElementById('btn-usun').style.display = "flex";
+        } else {
+            document.getElementById('btn-usun').style.display = "none";
         }
     }
 
@@ -125,36 +132,40 @@
             </div>`).join('');
     }
 
-    // Naprawiona funkcja wybierania
     function wybierz(kod) {
-        let it = db.find(i => String(i.kod) === String(kod));
+        let it = db.find(i => String(i.kod).trim() === String(kod).trim());
         if(it) {
             document.getElementById('kod').value = it.kod;
             document.getElementById('nazwa').value = it.nazwa;
             document.getElementById('regal').value = it.regal;
             document.getElementById('wyniki').innerHTML = "";
+            document.getElementById('btn-usun').style.display = "flex";
             window.scrollTo({top: 0, behavior: 'smooth'});
         }
     }
 
-    function wybierzZHistorii(tekstLogu) {
-    // Log ma format "KOD - NAZWA", bierzemy tylko to przed myślnikiem
-    let czesci = tekstLogu.split(' - ');
-    let kodZLogu = czesci[0].trim();
-    
-    // Szukamy w bazie obiektu, który ma taki kod
-    let produkt = db.find(i => String(i.kod).trim() === kodZLogu);
-    
-    if(produkt) {
-        document.getElementById('kod').value = produkt.kod;
-        document.getElementById('nazwa').value = produkt.nazwa;
-        document.getElementById('regal').value = produkt.regal;
-        window.scrollTo({top: 0, behavior: 'smooth'});
-    } else {
-        // Jeśli nie ma w db, wpisz chociaż sam kod z logu
-        document.getElementById('kod').value = kodZLogu;
+    function wybierzZLogu(tekst) {
+        let kod = tekst.split(' - ')[0].trim();
+        wybierz(kod);
     }
-}
+
+    async function usun() {
+        const kod = document.getElementById('kod').value;
+        if(!kod) return;
+        if(!confirm("CZY NA PEWNO USUNĄĆ TĘ CZĘŚĆ?")) return;
+        
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('loading').innerHTML = "<b>USUWANIE Z ARKUSZA...</b>";
+
+        try {
+            await fetch(API_URL + "?akcja=usun&kod=" + encodeURIComponent(kod));
+            alert("Usunięto!");
+            location.reload();
+        } catch(e) {
+            alert("Błąd!");
+            location.reload();
+        }
+    }
 
     async function zapisz() {
         const d = { 
@@ -162,7 +173,7 @@
             nazwa: document.getElementById('nazwa').value.trim(), 
             regal: document.getElementById('regal').value.trim() 
         };
-        if(!d.kod) return alert("Brak kodu!");
+        if(!d.kod) return alert("Błąd: Pole KOD jest puste!");
         
         document.getElementById('loading').style.display = 'flex';
         document.getElementById('loading').innerHTML = "<b>ZAPISYWANIE...</b>";
