@@ -3,43 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magazyn PRO v3.0</title>
+    <title>Magazyn PRO v3.1</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; }
-        #licznik-box { background: #000; color: #0f0; text-align: center; padding: 15px; border-radius: 15px; margin-bottom: 20px; }
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; margin: 0; padding: 10px; background: #f4f4f9; color: #333; }
+        
+        /* Licznik - Twój styl */
+        #licznik-box { background: #000; color: #0f0; text-align: center; padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 2px solid #333; }
         #dzienny-licznik { font-size: 40px; font-weight: 900; display: block; }
-        .btn { width: 100%; height: 75px; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        
+        .label { font-size: 14px; font-weight: bold; margin: 10px 0 5px 5px; display: block; text-transform: uppercase; color: #666; }
+        input { width: 100%; height: 60px; border: 3px solid #000; border-radius: 12px; font-size: 20px; margin-bottom: 10px; padding: 0 15px; background: #fff; }
+        
+        /* Przyciski */
+        .btn { width: 100%; height: 70px; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
         .btn-scan { background: #007bff; color: white; box-shadow: 0 5px 0 #004a99; }
-        .btn-save { background: #28a745; color: white; height: 85px; font-size: 22px; box-shadow: 0 6px 0 #1e7e34; }
-        input { width: 100%; height: 60px; border: 3px solid #000; border-radius: 12px; font-size: 22px; margin-bottom: 15px; padding: 0 15px; box-sizing: border-box; }
+        .btn-scan:active { transform: translateY(3px); box-shadow: 0 2px 0 #004a99; }
+        .btn-save { background: #28a745; color: white; height: 85px; font-size: 22px; box-shadow: 0 6px 0 #1e7e34; margin-top: 10px; }
+        
+        /* Skaner */
         #reader { width: 100%; max-width: 400px; margin: 0 auto 15px; display: none; border: 5px solid #007bff; border-radius: 15px; overflow: hidden; }
-        .log-item { border-bottom: 1px solid #ddd; padding: 10px 0; font-size: 14px; color: #333; }
+        
+        /* Sekcja Wyszukiwania i Historii */
+        .black-section { background: #1a1a1a; color: #fff; padding: 15px; border-radius: 15px; margin-top: 25px; }
+        #szukaj { background: #fff; color: #000; border: 3px solid #007bff; }
+        
+        .item-card { background: #fff; color: #000; padding: 12px; border-radius: 10px; margin-top: 10px; border-left: 8px solid #007bff; }
+        .log-item { border-bottom: 1px solid #444; padding: 10px 0; font-size: 13px; display: flex; justify-content: space-between; }
+        .log-type { font-weight: bold; }
+        
+        /* Status ładowania */
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 2000; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="licznik-box">DODANO DZIŚ: <span id="dzienny-licznik">0</span></div>
-<div id="reader"></div>
+<div id="loading-overlay">Ładowanie bazy danych...</div>
 
-<label>KOD CZĘŚCI:</label>
-<button class="btn btn-scan" onclick="startS('kod')">SKANUJ KOD QR</button>
-<input type="text" id="kod">
+<div class="container">
+    <div id="licznik-box">
+        <small>ZESKANOWANO DZISIAJ</small>
+        <span id="dzienny-licznik">0</span>
+    </div>
 
-<label>NAZWA:</label>
-<input type="text" id="nazwa">
+    <div id="reader"></div>
 
-<label>REGAŁ:</label>
-<button class="btn btn-scan" onclick="startS('regal')" style="background:#6c757d; box-shadow: 0 5px 0 #444;">SKANUJ REGAŁ</button>
-<input type="text" id="regal">
+    <label class="label">Kod części:</label>
+    <button class="btn btn-scan" onclick="startS('kod')">ODPAL SKANER QR</button>
+    <input type="text" id="kod" placeholder="Wpisz lub zeskanuj...">
 
-<button class="btn btn-save" onclick="zapisz()">ZAPISZ DO BAZY</button>
+    <label class="label">Nazwa części:</label>
+    <input type="text" id="nazwa" placeholder="Nazwa przedmiotu...">
 
-<div id="logi" style="margin-top:20px;"></div>
+    <label class="label">Miejsce / Regał:</label>
+    <button class="btn btn-scan" onclick="startS('regal')" style="background:#6c757d; box-shadow: 0 5px 0 #444;">SKANUJ REGAŁ</button>
+    <input type="text" id="regal" placeholder="Lokalizacja...">
+
+    <button class="btn btn-save" onclick="zapisz()">ZAPISZ / AKTUALIZUJ</button>
+
+    <div class="black-section">
+        <label class="label" style="color:#007bff">Wyszukiwarka:</label>
+        <input type="text" id="szukaj" placeholder="Szukaj po kodzie lub nazwie..." onkeyup="filtruj()">
+        <div id="wyniki-wyszukiwania"></div>
+    </div>
+
+    <div class="black-section">
+        <label class="label" style="color:#0f0">Ostatnia historia:</label>
+        <div id="logi"></div>
+    </div>
+</div>
 
 <script>
-    // WAŻNE: Tu wklej swój link z Google Apps Script (ten z /exec)
-    const API_URL = "https://script.google.com/macros/s/AKfycbxRDQTICCBJJ6XWAeoCkKsMasLCVA6Vc2fSII1xmb_J7QXM8pXaod5iY3IKWBCWg8W4/exec";
+    // --- KONFIGURACJA ---
+    const API_URL = "https://script.google.com/macros/s/AKfycbxRDQTICCBJJ6XWAeoCkKsMasLCVA6Vc2fSII1xmb_J7QXM8pXaod5iY3IKWBCWg8W4/exec"; 
+    // --------------------
 
     let h5q = null;
     let db = [];
@@ -48,10 +86,22 @@
         try {
             const resp = await fetch(API_URL + "?akcja=pobierz");
             const r = await resp.json();
-            db = r.b;
-            document.getElementById('dzienny-licznik').innerText = r.c;
-            document.getElementById('logi').innerHTML = r.l.map(l => `<div class="log-item"><b>${l.t}</b>: ${l.k} (${l.h})</div>`).join('');
-        } catch(e) { console.error("Błąd ładowania danych", e); }
+            db = r.b; // Baza przedmiotów
+            document.getElementById('dzienny-licznik').innerText = r.c; // Licznik
+            
+            // Renderowanie historii
+            document.getElementById('logi').innerHTML = r.l.map(l => `
+                <div class="log-item">
+                    <span><span class="log-type" style="color:${l.t==='USUNIĘCIE'?'#ff4d4d':'#4dff4d'}">[${l.t}]</span> ${l.k}</span>
+                    <span style="color:#aaa">${l.h}</span>
+                </div>
+            `).join('');
+            
+            document.getElementById('loading-overlay').style.display = 'none';
+        } catch(e) {
+            alert("Błąd połączenia z Google Sheets. Sprawdź API_URL.");
+            console.error(e);
+        }
     }
 
     function startS(id) {
@@ -59,38 +109,64 @@
         r.style.display = 'block';
         if(h5q) h5q.clear();
         h5q = new Html5Qrcode("reader");
-        h5q.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => {
+        h5q.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (text) => {
             document.getElementById(id).value = text;
-            if(id === 'kod') {
-                let it = db.find(i => String(i.kod) === String(text));
-                if(it) {
-                    document.getElementById('nazwa').value = it.nazwa;
-                    document.getElementById('regal').value = it.regal;
-                }
-            }
+            if(id === 'kod') autoUzupelnij(text);
             h5q.stop(); r.style.display = 'none';
-        }).catch(err => alert("Błąd kamery: " + err));
+        }).catch(err => alert("Aparat zablokowany lub nie znaleziony."));
+    }
+
+    function autoUzupelnij(kod) {
+        let it = db.find(i => String(i.kod).toLowerCase() === String(kod).toLowerCase());
+        if(it) {
+            document.getElementById('nazwa').value = it.nazwa;
+            document.getElementById('regal').value = it.regal;
+        }
+    }
+
+    function filtruj() {
+        let f = document.getElementById('szukaj').value.toLowerCase();
+        let div = document.getElementById('wyniki-wyszukiwania');
+        if(!f) { div.innerHTML = ""; return; }
+        
+        let res = db.filter(i => String(i.kod).toLowerCase().includes(f) || String(i.nazwa).toLowerCase().includes(f));
+        div.innerHTML = res.slice(0, 5).map(i => `
+            <div class="item-card" onclick="wybierz('${i.kod}','${i.nazwa}','${i.regal}')">
+                <b>${i.kod}</b><br>${i.nazwa} | Regał: ${i.regal}
+            </div>
+        `).join('');
+    }
+
+    function wybierz(k, n, r) {
+        document.getElementById('kod').value = k;
+        document.getElementById('nazwa').value = n;
+        document.getElementById('regal').value = r;
+        document.getElementById('wyniki-wyszukiwania').innerHTML = "";
+        window.scrollTo({top: 0, behavior: 'smooth'});
     }
 
     async function zapisz() {
-        const dane = {
+        const d = {
             kod: document.getElementById('kod').value,
             nazwa: document.getElementById('nazwa').value,
             regal: document.getElementById('regal').value
         };
-        if(!dane.kod) return alert("Podaj kod!");
+        if(!d.kod) return alert("Wpisz kod!");
+        
+        document.getElementById('loading-overlay').style.display = 'flex';
+        document.getElementById('loading-overlay').innerText = "Zapisywanie...";
 
         await fetch(API_URL, {
             method: 'POST',
-            mode: 'no-cors', // Ważne dla Google Apps Script
-            body: JSON.stringify(dane)
+            mode: 'no-cors',
+            body: JSON.stringify(d)
         });
-        
-        alert("Wysłano zapytanie o zapis!");
-        location.reload();
+
+        setTimeout(() => { location.reload(); }, 1500);
     }
 
     window.onload = load;
 </script>
+
 </body>
 </html>
